@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#22303c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Kotoba Offline</title>
+<style>
+  :root {
+    --ink: #22303c;
+    --washi: #f1ebdd;
+    --paper: #faf7ef;
+    --vermillion: #b8441f;
+    --moss: #5c6b4f;
+    --line: #d8cfb8;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    margin: 0;
+    background: var(--washi);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    padding: 16px 12px 40px;
+  }
+  .app { width: 100%; max-width: 440px; }
+  header { margin-bottom: 12px; }
+  header h1 { font-size: 20px; margin: 0 0 2px; font-weight: 700; }
+  header p { margin: 0; font-size: 12px; color: #5f6b74; }
+  
+  .search-row { display: flex; gap: 8px; margin-bottom: 8px; }
+  .search-row input[type="text"] {
+    flex: 1;
+    padding: 12px 14px;
+    border: 1.5px solid var(--line);
+    border-radius: 6px;
+    font-size: 16px;
+    background: var(--paper);
+    color: var(--ink);
+  }
+  .search-row input[type="text"]:focus { outline: none; border-color: var(--vermillion); }
+  
+  .mic-btn {
+    width: 46px;
+    flex-shrink: 0;
+    border: 1.5px solid var(--line);
+    background: var(--paper);
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+  }
+  .mic-btn.listening { background: var(--vermillion); border-color: var(--vermillion); }
+  .mic-btn.listening svg { fill: var(--paper); }
+  .mic-btn svg { width: 19px; height: 19px; fill: var(--ink); }
+  .mic-btn:disabled { opacity: 0.35; }
+  
+  .status { font-size: 12px; color: #8a7f66; margin: 0 0 8px 2px; min-height: 14px; }
+  
+  .tabs { display: flex; gap: 6px; margin-bottom: 12px; }
+  .tab {
+    flex: 1;
+    padding: 10px 0;
+    text-align: center;
+    font-size: 13px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--paper);
+    cursor: pointer;
+    font-weight: 500;
+  }
+  .tab.active { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+  
+  .card {
+    background: var(--paper);
+    border: 1.5px solid var(--line);
+    border-radius: 6px;
+    padding: 16px;
+    margin-bottom: 10px;
+  }
+  .card .en { font-size: 14px; color: var(--ink); margin: 0 0 4px; font-weight: 600; }
+  .card .kanji { font-size: 34px; line-height: 1.15; margin: 0 0 2px; font-weight: 600; }
+  .card .kanji.none { color: #b5ab90; font-style: italic; font-size: 16px; }
+  .card .hiragana { font-size: 18px; color: var(--moss); margin: 0 0 2px; }
+  .card .romaji { font-size: 13px; color: #8a7f66; margin: 0 0 10px; }
+  
+  .row2 {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-top: 1px solid var(--line);
+    padding-top: 10px;
+  }
+  .jlpt {
+    font-size: 11px;
+    padding: 2px 7px;
+    border: 1px solid var(--vermillion);
+    color: var(--vermillion);
+    border-radius: 3px;
+    font-weight: 600;
+  }
+  .speak-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--ink);
+    color: var(--paper);
+    border: none;
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .speak-btn svg { width: 13px; height: 13px; fill: currentColor; }
+  
+  .empty { font-size: 13px; color: #8a7f66; padding: 20px 2px; text-align: center; }
+  
+  .add-form {
+    display: none;
+    flex-direction: column;
+    gap: 10px;
+    background: var(--paper);
+    border: 1.5px solid var(--line);
+    border-radius: 6px;
+    padding: 16px;
+    margin-bottom: 14px;
+  }
+  .add-form.open { display: flex; }
+  .add-form input, .add-form select {
+    padding: 10px;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    font-size: 14px;
+    background: #fff;
+  }
+  .add-form button {
+    padding: 11px;
+    border: none;
+    border-radius: 4px;
+    background: var(--ink);
+    color: var(--paper);
+    font-size: 14px;
+    cursor: pointer;
+    font-weight: 600;
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>ことば Lookup (Offline)</h1>
+    <p>IndexedDB Dictionary Engine</p>
+  </header>
+
+  <div class="search-row">
+    <input type="text" id="search" placeholder="Type English, Hiragana, Kanji, or Romaji..." autocomplete="off">
+    <button class="mic-btn" id="micBtn" title="Speak English word">
+      <svg viewBox="0 0 24 24"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>
+    </button>
+  </div>
+  <div class="status" id="dbStatus">Loading offline dictionary...</div>
+
+  <div class="tabs">
+    <div class="tab active" id="tabLookup">Lookup</div>
+    <div class="tab" id="tabAdd">+ Add Word</div>
+  </div>
+
+  <div class="add-form" id="addForm">
+    <input type="text" id="addEn" placeholder="English meaning (required)">
+    <input type="text" id="addHira" placeholder="Hiragana reading (required)">
+    <input type="text" id="addKanji" placeholder="Kanji (optional)">
+    <select id="addLvl">
+      <option value="">No JLPT level</option>
+      <option value="N5">N5</option>
+      <option value="N4">N4</option>
+      <option value="N3">N3</option>
+      <option value="N2">N2</option>
+      <option value="N1">N1</option>
+    </select>
+    <button id="saveWord">Save to Local Database</button>
+  </div>
+
+  <div id="results"></div>
+</div>
+
+<script>
+/* ---------- Kana -> Romaji Engine ---------- */
+const KANA_COMBO = {'きゃ':'kya','きゅ':'kyu','きょ':'kyo','ぎゃ':'gya','ぎゅ':'gyu','ぎょ':'gyo','しゃ':'sha','しゅ':'shu','しょ':'sho','じゃ':'ja','じゅ':'ju','じょ':'jo','ちゃ':'cha','ちゅ':'chu','ちょ':'cho','にゃ':'nya','にゅ':'nyu','にょ':'nyo','ひゃ':'hya','ひゅ':'hyu','ひょ':'hyo','びゃ':'bya','びゅ':'byu','びょ':'byo','ぴゃ':'pya','ぴゅ':'pyu','ぴょ':'pyo','みゃ':'mya','みゅ':'myu','みょ':'myo','りゃ':'rya','りゅ':'ryu','りょ':'ryo'};
+const KANA_MAP = {'あ':'a','い':'i','う':'u','え':'e','お':'o','か':'ka','き':'ki','く':'ku','け':'ke','こ':'ko','が':'ga','ぎ':'gi','ぐ':'gu','げ':'ge','ご':'go','さ':'sa','し':'shi','す':'su','せ':'se','そ':'so','ざ':'za','じ':'ji','ず':'zu','ぜ':'ze','ぞ':'zo','た':'ta','ち':'chi','つ':'tsu','て':'te','ど':'do','だ':'da','ぢ':'ji','づ':'zu','で':'de','ど':'do','な':'na','に':'ni','ぬ':'nu','ね':'ne','の':'no','は':'ha','ひ':'hi','ふ':'fu','へ':'he','ほ':'ho','ば':'ba','び':'bi','ぶ':'bu','べ':'be','ぼ':'bo','ぱ':'pa','ぴ':'pi','ぷ':'pu','ぺ':'pe','ぽ':'po','ま':'ma','み':'mi','む':'mu','め':'me','も':'mo','や':'ya','ゆ':'yu','よ':'yo','ら':'ra','り':'ri','る':'ru','れ':'re','ろ':'ro','わ':'wa','を':'wo','ん':'n','ー':''};
+
+function toRomaji(kana) {
+  let out = '', i = 0;
+  while (i < kana.length) {
+    const two = kana.substr(i, 2);
+    if (KANA_COMBO[two]) { out += KANA_COMBO[two]; i += 2; continue; }
+    const ch = kana[i];
+    if (ch === 'っ') {
+      const nextTwo = kana.substr(i + 1, 2);
+      const nextOne = kana[i + 1];
+      const nextRomaji = KANA_COMBO[nextTwo] || KANA_MAP[nextOne] || '';
+      if (nextRomaji) out += nextRomaji[0];
+      i += 1; continue;
+    }
+    out += (KANA_MAP[ch] !== undefined) ? KANA_MAP[ch] : ch;
+    i += 1;
+  }
+  return out;
+}
+
+/* ---------- Expanded Initial Starter Dataset ---------- */
+const INITIAL_DATA = [
+  {k:"会う", h:"あう", en:"to meet, to see", lvl:"N5"},
+  {k:"青", h:"あお", en:"blue", lvl:"N5"},
+  {k:"赤", h:"あか", en:"red", lvl:"N5"},
+  {k:"明るい", h:"あかるい", en:"bright, cheerful", lvl:"N5"},
+  {k:"秋", h:"あき", en:"autumn, fall", lvl:"N5"},
+  {k:"開ける", h:"あける", en:"to open", lvl:"N5"},
+  {k:"朝", h:"あさ", en:"morning", lvl:"N5"},
+  {k:"明日", h:"あした", en:"tomorrow", lvl:"N5"},
+  {k:"足", h:"あし", en:"leg, foot", lvl:"N5"},
+  {k:"遊ぶ", h:"あそぶ", en:"to play", lvl:"N5"},
+  {k:"暖かい", h:"あたたかい", en:"warm", lvl:"N5"},
+  {k:"頭", h:"あたま", en:"head", lvl:"N5"},
+  {k:"新しい", h:"あたらしい", en:"new", lvl:"N5"},
+  {k:"暑い", h:"あつい", en:"hot (weather)", lvl:"N5"},
+  {k:"後", h:"あと", en:"after, later", lvl:"N5"},
+  {k:"家", h:"いえ", en:"house, home", lvl:"N5"},
+  {k:"行く", h:"いく", en:"to go", lvl:"N5"},
+  {k:"犬", h:"いぬ", en:"dog", lvl:"N5"},
+  {k:"今", h:"いま", en:"now", lvl:"N5"},
+  {k:"入る", h:"はいる", en:"to enter", lvl:"N5"},
+  {k:"駅", h:"えき", en:"station", lvl:"N5"},
+  {k:"美味しい", h:"おいしい", en:"delicious, tasty", lvl:"N5"},
+  {k:"大きい", h:"おおきい", en:"big, large", lvl:"N5"},
+  {k:"買物", h:"かいもの", en:"shopping", lvl:"N5"},
+  {k:"会社", h:"かいしゃ", en:"company", lvl:"N5"},
+  {k:"書く", h:"かく", en:"to write", lvl:"N5"},
+  {k:"学生", h:"がくせい", en:"student", lvl:"N5"},
+  {k:"食べる", h:"たべる", en:"to eat", lvl:"N5"},
+  {k:"飲む", h:"のむ", en:"to drink", lvl:"N5"},
+  {k:"本", h:"ほん", en:"book", lvl:"N5"},
+  {k:"猫", h:"ねこ", en:"cat", lvl:"N5"},
+  {k:"車", h:"くるま", en:"car, vehicle", lvl:"N5"},
+  {k:"時間", h:"じかん", en:"time, hours", lvl:"N4"},
+  {k:"準備", h:"じゅんび", en:"preparation", lvl:"N4"},
+  {k:"事故", h:"じこ", en:"accident", lvl:"N4"},
+  {k:"計画", h:"けいかく", en:"plan, project", lvl:"N3"},
+  {k:"開発", h:"かいはつ", en:"development", lvl:"N3"},
+  {k:"確認", h:"かくにん", en:"confirmation, verification", lvl:"N3"}
+];
+
+/* ---------- IndexedDB Database Controller ---------- */
+let db = null;
+
+function initDB() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open('KotobaDB', 1);
+    request.onupgradeneeded = (e) => {
+      const database = e.target.result;
+      if (!database.objectStoreNames.contains('words')) {
+        const store = database.createObjectStore('words', { keyPath: 'id', autoIncrement: true });
+        store.createIndex('en', 'en', { unique: false });
+        store.createIndex('h', 'h', { unique: false });
+        store.createIndex('k', 'k', { unique: false });
+      }
+    };
+    request.onsuccess = (e) => {
+      db = e.target.result;
+      seedInitialData().then(resolve);
+    };
+    request.onerror = (e) => reject(e);
+  });
+}
+
+function seedInitialData() {
+  return new Promise((resolve) => {
+    const tx = db.transaction('words', 'readwrite');
+    const store = tx.objectStore('words');
+    const countReq = store.count();
+    countReq.onsuccess = () => {
+      if (countReq.result === 0) {
+        INITIAL_DATA.forEach(item => {
+          item.r = toRomaji(item.h);
+          store.add(item);
+        });
+      }
+      resolve();
+    };
+  });
+}
+
+function searchDB(query) {
+  return new Promise((resolve) => {
+    const q = query.trim().toLowerCase();
+    if (!q) { resolve([]); return; }
+    
+    const tx = db.transaction('words', 'readonly');
+    const store = tx.objectStore('words');
+    const req = store.openCursor();
+    const results = [];
+
+    req.onsuccess = (e) => {
+      const cursor = e.target.result;
+      if (cursor && results.length < 50) {
+        const val = cursor.value;
+        if (val.en.toLowerCase().includes(q) || 
+            val.h.includes(q) || 
+            (val.k && val.k.includes(q)) || 
+            (val.r && val.r.includes(q))) {
+          results.push(val);
+        }
+        cursor.continue();
+      } else {
+        resolve(results);
+      }
+    };
+  });
+}
+
+function addWordToDB(entry) {
+  return new Promise((resolve) => {
+    const tx = db.transaction('words', 'readwrite');
+    const store = tx.objectStore('words');
+    entry.r = toRomaji(entry.h);
+    store.add(entry);
+    tx.oncomplete = () => resolve();
+  });
+}
+
+/* ---------- Speech Output ---------- */
+function speak(text) {
+  if (!('speechSynthesis' in window)) return;
+  window.speechSynthesis.cancel();
+  const utter = new SpeechSynthesisUtterance(text);
+  utter.lang = 'ja-JP';
+  window.speechSynthesis.speak(utter);
+}
+
+/* ---------- UI Controller ---------- */
+const searchInput = document.getElementById('search');
+const resultsDiv = document.getElementById('results');
+const dbStatus = document.getElementById('dbStatus');
+
+async function handleSearch() {
+  const q = searchInput.value;
+  const matches = await searchDB(q);
+  resultsDiv.innerHTML = '';
+
+  if (!q.trim()) return;
+
+  if (matches.length === 0) {
+    resultsDiv.innerHTML = '<div class="empty">No offline entries found.</div>';
+    return;
+  }
+
+  matches.forEach(item => {
+    const card = document.createElement('div');
+    card.className = 'card';
+    const kanjiHtml = item.k ? `<div class="kanji">${item.k}</div>` : `<div class="kanji none">No Kanji</div>`;
+    const lvlHtml = item.lvl ? `<span class="jlpt">${item.lvl}</span>` : '<span></span>';
+
+    card.innerHTML = `
+      <div class="en">${item.en}</div>
+      ${kanjiHtml}
+      <div class="hiragana">${item.h}</div>
+      <div class="romaji">${item.r}</div>
+      <div class="row2">
+        ${lvlHtml}
+        <button class="speak-btn">
+          <svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/></svg>
+          Listen
+        </button>
+      </div>
+    `;
+
+    card.querySelector('.speak-btn').addEventListener('click', () => speak(item.h));
+    resultsDiv.appendChild(card);
+  });
+}
+
+searchInput.addEventListener('input', handleSearch);
+
+// Tabs Logic
+const tabLookup = document.getElementById('tabLookup');
+const tabAdd = document.getElementById('tabAdd');
+const addForm = document.getElementById('addForm');
+
+tabLookup.addEventListener('click', () => {
+  tabLookup.classList.add('active');
+  tabAdd.classList.remove('active');
+  addForm.classList.remove('open');
+});
+
+tabAdd.addEventListener('click', () => {
+  tabAdd.classList.add('active');
+  tabLookup.classList.remove('active');
+  addForm.classList.add('open');
+});
+
+document.getElementById('saveWord').addEventListener('click', async () => {
+  const en = document.getElementById('addEn').value.trim();
+  const h = document.getElementById('addHira').value.trim();
+  const k = document.getElementById('addKanji').value.trim();
+  const lvl = document.getElementById('addLvl').value;
+
+  if (!en || !h) {
+    alert('Please enter English and Hiragana values.');
+    return;
+  }
+
+  await addWordToDB({ en, h, k, lvl });
+
+  document.getElementById('addEn').value = '';
+  document.getElementById('addHira').value = '';
+  document.getElementById('addKanji').value = '';
+  document.getElementById('addLvl').value = '';
+
+  tabLookup.click();
+  searchInput.value = en;
+  handleSearch();
+});
+
+// Speech Recognition setup
+const micBtn = document.getElementById('micBtn');
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+if (SpeechRecognition) {
+  const recognition = new SpeechRecognition();
+  recognition.lang = 'en-US';
+
+  micBtn.addEventListener('click', () => recognition.start());
+  recognition.onstart = () => micBtn.classList.add('listening');
+  recognition.onresult = (e) => {
+    const text = e.results[0][0].transcript;
+    searchInput.value = text;
+    handleSearch();
+  };
+  recognition.onend = () => micBtn.classList.remove('listening');
+  recognition.onerror = () => micBtn.classList.remove('listening');
+} else {
+  micBtn.disabled = true;
+}
+
+/* ---------- Service Worker Generator for 100% Offline App Install ---------- */
+function registerSelfServiceWorker() {
+  if ('serviceWorker' in navigator) {
+    const swCode = `
+      const CACHE = 'kotoba-db-v1';
+      self.addEventListener('install', e => {
+        e.waitUntil(caches.open(CACHE).then(c => c.addAll(['./'])));
+      });
+      self.addEventListener('fetch', e => {
+        e.respondWith(caches.match(e.request).then(res => res || fetch(e.request)));
+      });
+    `;
+    const blob = new Blob([swCode], { type: 'text/javascript' });
+    const swUrl = URL.createObjectURL(blob);
+    navigator.serviceWorker.register(swUrl).then(() => {
+      console.log('Offline Engine Ready');
+    }).catch(() => {});
+  }
+}
+
+// App Initialization
+initDB().then(() => {
+  dbStatus.textContent = 'Dictionary ready (Offline Mode Enabled)';
+  registerSelfServiceWorker();
+}).catch(() => {
+  dbStatus.textContent = 'Error loading local database.';
+});
+</script>
+</body>
+</html>
